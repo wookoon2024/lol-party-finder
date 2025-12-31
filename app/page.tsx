@@ -45,6 +45,16 @@ export default function Home() {
     setParties(data || []);
   };
 
+  // 내전 상단 고정을 위한 정렬 로직 함수
+  const getSortedParties = () => {
+    const filtered = parties.filter(p => filterCat === '모두' ? true : p.category === filterCat);
+    // '내전'인 것과 아닌 것을 분리
+    const naejeon = filtered.filter(p => p.category === '내전');
+    const others = filtered.filter(p => p.category !== '내전');
+    // 내전을 배열 맨 앞으로 합침
+    return [...naejeon, ...others];
+  };
+
   const handleCategory = (cat: string) => {
     let max = 5;
     let room = `${cat} 1번방`;
@@ -73,7 +83,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#020617] text-slate-300 p-4 font-sans">
       <div className="max-w-5xl mx-auto flex justify-between items-center py-0 border-b border-white/5 mb-6">
-        <h1 className="text-[16px] font-black  text-white tracking-tighter uppercase">롤 파티 구하기</h1>
+        <h1 className="text-[16px] font-black text-white tracking-tighter uppercase">롤 파티 구하기</h1>
         <div className="text-[12px] font-bold text-cyan-400 border border-cyan-400/30 px-8 py-1 rounded-md bg-cyan-400/5">{nickname}</div>
       </div>
 
@@ -84,12 +94,18 @@ export default function Home() {
       </div>
 
       <div className="max-w-5xl mx-auto space-y-3">
-        {parties.filter(p => filterCat === '모두' ? true : p.category === filterCat).map((party) => {
+        {getSortedParties().map((party) => { // 정렬된 리스트 사용
           const t = theme[party.category as keyof typeof theme] || { bg: 'bg-slate-900/20', border: 'border-white/10', text: 'text-white', accent: 'bg-white' };
           const isJoined = party.party_members?.some((m: any) => m.user_nickname === nickname);
+          const isFull = party.current_players >= party.max_players;
 
           return (
-            <div key={party.id} className={`${t.bg} border ${t.border} rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-white/20 shadow-xl`}>
+            <div key={party.id} className={`${t.bg} border ${party.category === '내전' ? 'border-emerald-400 shadow-emerald-500/20' : t.border} rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:border-white/20 shadow-xl relative overflow-hidden`}>
+              {/* 내전일 경우 상단 고정 배지 추가 */}
+              {party.category === '내전' && (
+                <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">PINNED</div>
+              )}
+              
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-[12px] font-black uppercase px-2 py-0.5 rounded ${t.accent} text-black`}>{party.category}</span>
@@ -106,7 +122,7 @@ export default function Home() {
               </div>
 
               <div className="flex items-center justify-between md:justify-end gap-0 shrink-0 border-t md:border-t-0 border-white/5 pt-1 md:pt-0">
-                <div className="text-[12px] font-black text-white  px-1">{party.current_players} / {party.max_players}</div>
+                <div className="text-[12px] font-black text-white px-1">{party.current_players} / {party.max_players}</div>
                 <div className="flex gap-2">
                   {party.creator_nickname === nickname ? (
                     <button onClick={async () => { if(confirm('삭제?')) await supabase.from('parties').delete().eq('id', party.id); }} className="text-[12px] font-bold text-red-400 bg-red-400/10 px-3 py-1.5 rounded-lg border border-red-400/20 hover:bg-red-500 hover:text-white transition-all">삭제</button>
@@ -115,12 +131,14 @@ export default function Home() {
                       if (isJoined) {
                         await supabase.from('party_members').delete().eq('party_id', party.id).eq('user_nickname', nickname);
                         await supabase.from('parties').update({ current_players: Math.max(1, party.current_players - 1) }).eq('id', party.id);
-                      } else if (party.current_players < party.max_players) {
+                      } else if (!isFull) {
                         await supabase.from('party_members').insert([{ party_id: party.id, user_nickname: nickname }]);
                         await supabase.from('parties').update({ current_players: party.current_players + 1 }).eq('id', party.id);
                       }
-                    }} className={`text-[10px] font-black px-5 py-1.5 rounded-lg transition-all ${isJoined ? 'bg-slate-700 text-white shadow-inner' : 'bg-white text-black shadow-lg shadow-white/5'}`}>
-                      {isJoined ? 'LEAVE' : 'JOIN'}
+                    }} 
+                    disabled={isFull && !isJoined}
+                    className={`text-[12px] font-black px-5 py-1.5 rounded-lg transition-all ${isJoined ? 'bg-slate-700 text-white shadow-inner' : isFull ? 'bg-red-950/20 text-red-500 border border-red-500/20 cursor-not-allowed' : 'bg-white text-black shadow-lg shadow-white/5'}`}>
+                      {isJoined ? '떠나기' : isFull ? '풀방' : '참여'}
                     </button>
                   )}
                 </div>
@@ -129,13 +147,13 @@ export default function Home() {
           );
         })}
       </div>
-
+      {/* (모달 코드 등 나머지 200줄 이상 로직 동일하게 유지) */}
       <button onClick={() => setIsCreateModalOpen(true)} className="fixed bottom-8 right-8 w-14 h-14 bg-white text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl font-bold hover:scale-110 active:scale-95 transition-all z-30 shadow-white/10">+</button>
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
           <div className="bg-[#0f172a] border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h2 className="text-[10px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">Party Configuration</h2>
+            <h2 className="text-[10px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">방 만들기</h2>
             <div className="space-y-4">
               <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
                 {categories.filter(c => c !== '모두').map(c => (
@@ -181,8 +199,8 @@ export default function Home() {
               <input className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-white/30" placeholder="파티 제목 입력" onChange={e => setFormData({...formData, title: e.target.value})} />
             </div>
             <div className="flex gap-3 mt-8 pt-4 border-t border-white/5">
-              <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 text-[10px] font-bold text-slate-500">CANCEL</button>
-              <button onClick={handleSubmit} className="flex-1 py-3 text-[10px] bg-white text-black font-black rounded-xl hover:bg-slate-200">CREATE</button>
+              <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 text-[10px] font-bold text-slate-500">취소</button>
+              <button onClick={handleSubmit} className="flex-1 py-3 text-[10px] bg-white text-black font-black rounded-xl hover:bg-slate-200">확인</button>
             </div>
           </div>
         </div>
