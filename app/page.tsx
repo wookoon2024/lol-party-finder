@@ -294,8 +294,8 @@ const getSortedParties = () => {
                 {/* 경고 박스 */}
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-8">
                   <p className="text-red-400 text-[11px] font-bold leading-5 text-left">
-                    ?? 실제 닉네임과 다를 시 <span className="underline">알림 미작동</span><br/>
-                    ?? 장난 입력 시 <span className="underline">추후 수정 절대 불가</span>
+                    ⚠️ 실제 닉네임과 다를 시 <span className="underline">알림 미작동</span><br/>
+                    ⚠️ 장난 입력 시 <span className="underline">추후 수정 절대 불가</span>
                   </p>
                 </div>
 
