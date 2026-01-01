@@ -173,9 +173,25 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#020617] text-slate-300 p-4 font-sans">
       <div className="max-w-5xl mx-auto flex justify-between items-center py-0 border-b border-white/5 mb-6">
-        <h1 className="text-[16px] font-black text-white tracking-tighter uppercase">롤 파티 구하기</h1>
-        <div className="text-[12px] font-bold text-cyan-400 border border-cyan-400/30 px-8 py-1 rounded-md bg-cyan-400/5">{nickname}</div>
-      </div>
+          <h1 className="text-[16px] font-black text-white tracking-tighter uppercase">롤 파티 구하기</h1>
+          <div className="flex items-center gap-2">
+            <div className="text-[12px] font-bold text-cyan-400 border border-cyan-400/30 px-4 py-1 rounded-md bg-cyan-400/5">
+              {nickname}
+            </div>
+            {/* 닉네임 재설정 버튼 추가 */}
+            <button 
+              onClick={() => {
+                if(confirm('닉네임을 다시 설정하시겠습니까?')) {
+                  localStorage.removeItem('lol_nickname');
+                  window.location.reload(); // 새로고침해서 초기 모달 띄움
+                }
+              }}
+              className="text-[10px] font-bold text-slate-500 hover:text-white border border-white/10 px-2 py-1 rounded-md transition-all"
+            >
+              재설정
+            </button>
+          </div>
+        </div>
 
       <div className="max-w-5xl mx-auto flex gap-2 mb-2 overflow-x-auto pb-2 scrollbar-hide">
         {categories.map(c => (
@@ -212,7 +228,7 @@ export default function Home() {
 
               <div className="flex items-center justify-between md:justify-end gap-0 shrink-0 border-t md:border-t-0 border-white/5 pt-1 md:pt-0">
                 <div className="text-[12px] font-black text-white px-1">{party.current_players} / {party.max_players}</div>
-                <div className="flex gap-2">
+                git add .<div className="flex gap-2">
                   {party.creator_nickname === nickname ? (
                     <button onClick={async () => { if(confirm('삭제?')) await supabase.from('parties').delete().eq('id', party.id); }} className="text-[12px] font-bold text-red-400 bg-red-400/10 px-3 py-1.5 rounded-lg border border-red-400/20 hover:bg-red-500 hover:text-white transition-all">삭제</button>
                   ) : (
