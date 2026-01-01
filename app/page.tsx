@@ -260,8 +260,8 @@ export default function Home() {
             })
             ) : (
             /* 방 목록이 없을 때 표시할 안내 문구 */
-            <div className="mt-16 flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
-                <div className="text-4xl mb-4"><br/><br/>🎮</div>
+            <div className="mt-1 flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+                <div className="text-4xl mb-4">🎮</div>
                 <h3 className="text-white font-bold text-[15px] mb-2">현재 모집 중인 파티가 없습니다.</h3>
                 <p className="text-slate-500 text-[12px] leading-6 mb-6">
                   파티는 <span className="text-cyan-400">출발 시간으로부터 1시간</span> 동안 유지됩니다.<br/>
