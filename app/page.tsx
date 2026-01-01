@@ -199,79 +199,83 @@ export default function Home() {
         ))}
       </div>
 
-      <div className="max-w-5xl mx-auto space-y-3">
-        {getSortedParties().map((party) => {
-          const t = theme[party.category as keyof typeof theme] || { bg: 'bg-slate-900/20', border: 'border-white/10', text: 'text-white', accent: 'bg-white' };
-          const isJoined = party.party_members?.some((m: any) => m.user_nickname === nickname);
-          const isFull = party.current_players >= party.max_players;
+        <div className="max-w-5xl mx-auto space-y-3">
+            {getSortedParties().length > 0 ? (
+            getSortedParties().map((party) => {
+                const t = theme[party.category as keyof typeof theme] || { bg: 'bg-slate-900/20', border: 'border-white/10', text: 'text-white', accent: 'bg-white' };
+                const isJoined = party.party_members?.some((m: any) => m.user_nickname === nickname);
+                const isFull = party.current_players >= party.max_players;
 
-          return (
-            <div key={party.id} className={`${t.bg} border ${party.category === '내전' ? 'border-emerald-400 shadow-emerald-500/20' : t.border} rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-2 transition-all hover:border-white/20 shadow-xl relative overflow-hidden`}>
-              {party.category === '내전' && <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">PINNED</div>}
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`text-[12px] font-black uppercase px-2 py-0.5 rounded ${t.accent} text-black`}>{party.category}</span>
-                  <span className="text-[12px] text-white font-black bg-white/10 px-2 rounded border border-white/5">{getStartTime(party.created_at, party.start_time)}</span>
-                  {/* 여러 티어 표시됨 */}
-                  <span className="text-[12px] text-slate-400 font-bold">{party.tier}</span>
-                  <span className="text-[12px] text-slate-600 border-l border-white/10 pl-2 font-mono uppercase tracking-tighter">{party.discord_room}</span>
-                  <span className="text-[11px] text-slate-500 border-l border-white/10 pl-2 font-medium">{getRelativeTime(party.created_at)}</span>
+                return (
+                <div key={party.id} className={`${t.bg} border ${party.category === '내전' ? 'border-emerald-400 shadow-emerald-500/20' : t.border} rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-2 transition-all hover:border-white/20 shadow-xl relative overflow-hidden`}>
+                    {party.category === '내전' && <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">PINNED</div>}
+          
+                    <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-[12px] font-black uppercase px-2 py-0.5 rounded ${t.accent} text-black`}>{party.category}</span>
+                        <span className="text-[12px] text-white font-black bg-white/10 px-2 rounded border border-white/5">{getStartTime(party.created_at, party.start_time)}</span>
+                        <span className="text-[12px] text-slate-400 font-bold">{party.tier}</span>
+                        <span className="text-[12px] text-slate-600 border-l border-white/10 pl-2 font-mono uppercase tracking-tighter">{party.discord_room}</span>
+                        <span className="text-[11px] text-slate-500 border-l border-white/10 pl-2 font-medium">{getRelativeTime(party.created_at)}</span>
+                    </div>
+                    <h3 className="text-[16px] font-bold text-white mb-2">{party.title}</h3>
+                    <div className="flex flex-wrap gap-1.5">
+                        {party.party_members?.map((m: any, i: number) => (
+                        <span key={i} className="text-[10px] bg-white/5 text-slate-300 px-1 py-0.5 rounded border border-white/10">{m.user_nickname} {party.creator_nickname === m.user_nickname && '👑'}</span>
+                        ))}
+                    </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end gap-0 shrink-0 border-t md:border-t-0 border-white/5 pt-1 md:pt-0">
+                    <div className="text-[12px] font-black text-white px-1">{party.current_players} / {party.max_players}</div>
+                    <div className="flex gap-2">
+                        {party.creator_nickname === nickname ? (
+                        <button onClick={async () => { if(confirm('삭제?')) await supabase.from('parties').delete().eq('id', party.id); }} className="text-[12px] font-bold text-red-400 bg-red-400/10 px-3 py-1.5 rounded-lg border border-red-400/20 hover:bg-red-500 hover:text-white transition-all">삭제</button>
+                        ) : (
+                        <button 
+                            onClick={async () => {
+                            if (isProcessing) return; 
+                            setIsProcessing(party.id);
+                            try {
+                                if (isJoined) {
+                                await supabase.from('party_members').delete().eq('party_id', party.id).eq('user_nickname', nickname);
+                                await supabase.from('parties').update({ current_players: Math.max(1, party.current_players - 1) }).eq('id', party.id);
+                                } else if (!isFull) {
+                                await supabase.from('party_members').insert([{ party_id: party.id, user_nickname: nickname }]);
+                                await supabase.from('parties').update({ current_players: party.current_players + 1 }).eq('id', party.id);
+                                }
+                            } finally {
+                                setIsProcessing(null); 
+                            }
+                            }} 
+                            disabled={(isFull && !isJoined) || (isProcessing === party.id)}
+                            className={`text-[12px] font-black px-5 py-1.5 rounded-lg transition-all ${isJoined ? 'bg-slate-700 text-white shadow-inner' : isFull ? 'bg-red-950/20 text-red-500 border border-red-500/20 cursor-not-allowed' : 'bg-white text-black shadow-lg shadow-white/5'} ${isProcessing === party.id ? 'opacity-50' : ''}`}>
+                            {isProcessing === party.id ? '...' : (isJoined ? '떠나기' : isFull ? '풀방' : '참여')}
+                        </button>
+                        )}
+                    </div>
+                    </div>
                 </div>
-                <h3 className="text-[16px] font-bold text-white mb-2">{party.title}</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {party.party_members?.map((m: any, i: number) => (
-                    <span key={i} className="text-[10px] bg-white/5 text-slate-300 px-1 py-0.5 rounded border border-white/10">{m.user_nickname} {party.creator_nickname === m.user_nickname && '👑'}</span>
-                  ))}
-                </div>
+                );
+            })
+            ) : (
+            /* 방 목록이 없을 때 표시할 안내 문구 */
+            <div className="mt-16 flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+                <div className="text-4xl mb-4"><br/><br/>🎮</div>
+                <h3 className="text-white font-bold text-[15px] mb-2">현재 모집 중인 파티가 없습니다.</h3>
+                <p className="text-slate-500 text-[12px] leading-6 mb-6">
+                  파티는 <span className="text-cyan-400">출발 시간으로부터 1시간</span> 동안 유지됩니다.<br/>
+                  직접 방을 만들고 오픈톡 친구들을 초대해 보세요!
+                </p>
+                <button 
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="bg-white text-black px-2 py-2 rounded-xl text-[12px] font-black hover:scale-105 transition-all shadow-lg shadow-white/5"
+                >
+                  파티 만들기
+                </button>
               </div>
-
-              <div className="flex items-center justify-between md:justify-end gap-0 shrink-0 border-t md:border-t-0 border-white/5 pt-1 md:pt-0">
-                <div className="text-[12px] font-black text-white px-1">{party.current_players} / {party.max_players}</div>
-                git add .<div className="flex gap-2">
-                  {party.creator_nickname === nickname ? (
-                    <button onClick={async () => { if(confirm('삭제?')) await supabase.from('parties').delete().eq('id', party.id); }} className="text-[12px] font-bold text-red-400 bg-red-400/10 px-3 py-1.5 rounded-lg border border-red-400/20 hover:bg-red-500 hover:text-white transition-all">삭제</button>
-                  ) : (
-                    <button 
-                      onClick={async () => {
-                        // [수정] 이미 처리 중이면 클릭 무시
-                        if (isProcessing) return; 
-                        setIsProcessing(party.id);
-
-                        try {
-                          if (isJoined) {
-                            await supabase.from('party_members').delete().eq('party_id', party.id).eq('user_nickname', nickname);
-                            await supabase.from('parties').update({ current_players: Math.max(1, party.current_players - 1) }).eq('id', party.id);
-                          } else if (!isFull) {
-                            // [중복 방지] 데이터베이스에 이미 있는지 한 번 더 확인 (선택 사항이지만 안전함)
-                            await supabase.from('party_members').insert([{ party_id: party.id, user_nickname: nickname }]);
-                            await supabase.from('parties').update({ current_players: party.current_players + 1 }).eq('id', party.id);
-                          }
-                        } catch (e) {
-                          console.error(e);
-                        } finally {
-                          // [수정] 처리가 끝나면(성공/실패 무관) 다시 버튼 활성화
-                          setIsProcessing(null); 
-                        }
-                      }} 
-                      // [수정] 처리 중이거나 풀방일 때 버튼 비활성화
-                      disabled={(isFull && !isJoined) || (isProcessing === party.id)}
-                      className={`text-[12px] font-black px-5 py-1.5 rounded-lg transition-all ${
-                        isJoined ? 'bg-slate-700 text-white shadow-inner' : 
-                        isFull ? 'bg-red-950/20 text-red-500 border border-red-500/20 cursor-not-allowed' : 
-                        'bg-white text-black shadow-lg shadow-white/5'
-                      } ${isProcessing === party.id ? 'opacity-50 cursor-wait' : ''}`}
-                    >
-                      {/* [수정] 처리 중일 때는 "..." 표시 */}
-                      {isProcessing === party.id ? '...' : (isJoined ? '떠나기' : isFull ? '풀방' : '참여')}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            )}
+        </div>
 
       <button onClick={() => setIsCreateModalOpen(true)} className="fixed bottom-8 right-8 w-14 h-14 bg-white text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl font-bold hover:scale-110 active:scale-95 transition-all z-30 shadow-white/10">+</button>
 
