@@ -15,6 +15,7 @@ export default function Home() {
   const categories = ['모두', '솔랭', '자랭', '칼바람', '롤체', '내전'];
   const writeTiers = ['상관없음', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메랄드', '다이아', '마스터+'];
   const timeOptions = ['즉시 출발', '5분 뒤', '10분 뒤', '30분 뒤', '1시간 뒤', '직접 입력'];
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   const theme = {
     '솔랭': { bg: 'bg-cyan-950/40', border: 'border-cyan-500/50', text: 'text-cyan-400', accent: 'bg-cyan-500' },
@@ -24,8 +25,9 @@ export default function Home() {
     '내전': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
   };
 
+  // 1. tier를 배열로 변경
   const [formData, setFormData] = useState({ 
-    category: '솔랭', title: '', tier: '상관없음', max_players: 2, discord_room: '솔랭 1번방', start_time: '즉시 출발' 
+    category: '솔랭', title: '', tier: ['상관없음'] as string[], max_players: 2, discord_room: '솔랭 1번방', start_time: '즉시 출발' 
   });
 
   useEffect(() => {
@@ -45,61 +47,53 @@ export default function Home() {
     setParties(data || []);
   };
 
-const getSortedParties = () => {
-  const now = new Date();
-  const nowTime = now.getTime();
+  // getSortedParties 로직은 그대로 유지 (tier 표시만 나중에 처리됨)
+  const getSortedParties = () => {
+    const now = new Date();
+    const nowTime = now.getTime();
 
-  const filtered = parties.filter(p => {
-    const isCategoryMatch = filterCat === '모두' ? true : p.category === filterCat;
-    if (!p.created_at || !isCategoryMatch) return isCategoryMatch;
+    const filtered = parties.filter(p => {
+      const isCategoryMatch = filterCat === '모두' ? true : p.category === filterCat;
+      if (!p.created_at || !isCategoryMatch) return isCategoryMatch;
 
-    const createdAt = new Date(p.created_at).getTime();
-    const isFull = p.current_players >= p.max_players;
+      const createdAt = new Date(p.created_at).getTime();
+      const isFull = p.current_players >= p.max_players;
 
-    let startOffsetMs = 0;
-    const sTime = p.start_time || "";
+      let startOffsetMs = 0;
+      const sTime = p.start_time || "";
 
-    // 1. "N분 뒤", "N시간 뒤" 패턴 (기존 유지)
-    if (sTime.includes('분 뒤')) {
-      startOffsetMs = parseInt(sTime) * 60 * 1000;
-    } else if (sTime.includes('시간 뒤')) {
-      startOffsetMs = parseInt(sTime) * 60 * 60 * 1000;
-    } 
-    // 2. "21:30", "21시 30분", "2100" 등 절대 시각 패턴 분석
-    else if (sTime !== '즉시 출발') {
-      const nums = sTime.replace(/[^0-9]/g, ''); // 숫자만 추출 (예: "21:30" -> "2130")
-      
-      if (nums.length >= 3) { // 최소 "900"(9시) 이상일 때만 처리
-        const hour = parseInt(nums.length === 3 ? nums.substring(0, 1) : nums.substring(0, 2));
-        const min = parseInt(nums.length === 3 ? nums.substring(1) : nums.substring(2));
-
-        if (hour < 24 && min < 60) {
-          const targetDate = new Date(p.created_at); // 방 생성 날짜 기준
-          targetDate.setHours(hour, min, 0, 0);
-          
-          // 만약 설정한 시간이 생성 시간보다 이전이면 (예: 다음날 새벽) 날짜 하루 추가
-          if (targetDate.getTime() < createdAt) {
-            targetDate.setDate(targetDate.getDate() + 1);
+      if (sTime.includes('분 뒤')) {
+        startOffsetMs = parseInt(sTime) * 60 * 1000;
+      } else if (sTime.includes('시간 뒤')) {
+        startOffsetMs = parseInt(sTime) * 60 * 60 * 1000;
+      } 
+      else if (sTime !== '즉시 출발') {
+        const nums = sTime.replace(/[^0-9]/g, '');
+        if (nums.length >= 3) {
+          const hour = parseInt(nums.length === 3 ? nums.substring(0, 1) : nums.substring(0, 2));
+          const min = parseInt(nums.length === 3 ? nums.substring(1) : nums.substring(2));
+          if (hour < 24 && min < 60) {
+            const targetDate = new Date(p.created_at);
+            targetDate.setHours(hour, min, 0, 0);
+            if (targetDate.getTime() < createdAt) {
+              targetDate.setDate(targetDate.getDate() + 1);
+            }
+            startOffsetMs = targetDate.getTime() - createdAt;
           }
-          startOffsetMs = targetDate.getTime() - createdAt;
         }
       }
-    }
 
-    // [기준] 예약 시작 시간 + 1시간(여유) 지나면 삭제
-    const expireTime = createdAt + startOffsetMs + (60 * 60 * 1000);
-    const isExpired = nowTime > expireTime;
-    
-    // [기준] 풀방인 경우 생성 1시간 뒤 삭제
-    const isFullExpired = isFull && (nowTime > createdAt + (60 * 60 * 1000));
+      const expireTime = createdAt + startOffsetMs + (60 * 60 * 1000);
+      const isExpired = nowTime > expireTime;
+      const isFullExpired = isFull && (nowTime > createdAt + (60 * 60 * 1000));
 
-    return !isExpired && !isFullExpired;
-  });
+      return !isExpired && !isFullExpired;
+    });
 
-  const naejeon = filtered.filter(p => p.category === '내전');
-  const others = filtered.filter(p => p.category !== '내전');
-  return [...naejeon, ...others];
-};
+    const naejeon = filtered.filter(p => p.category === '내전');
+    const others = filtered.filter(p => p.category !== '내전');
+    return [...naejeon, ...others];
+  };
 
   const handleCategory = (cat: string) => {
     let max = 5;
@@ -110,58 +104,71 @@ const getSortedParties = () => {
     setFormData({ ...formData, category: cat, max_players: max, discord_room: room });
   };
 
+  // 2. 티어 중복 선택 로직 추가
+  const handleTierClick = (t: string) => {
+    let newTiers = [...formData.tier];
+    
+    if (t === '상관없음') {
+      newTiers = ['상관없음'];
+    } else {
+      // '상관없음'이 있으면 제거
+      newTiers = newTiers.filter(item => item !== '상관없음');
+      
+      if (newTiers.includes(t)) {
+        // 이미 선택되어 있으면 제거 (단, 마지막 하나는 남겨두거나 상관없음으로 복귀)
+        newTiers = newTiers.filter(item => item !== t);
+        if (newTiers.length === 0) newTiers = ['상관없음'];
+      } else {
+        // 새로 선택
+        newTiers.push(t);
+      }
+    }
+    setFormData({ ...formData, tier: newTiers });
+  };
+
   const handleSubmit = async () => {
     if (!formData.title) return alert("제목 입력!");
     const finalStartTime = formData.start_time === '직접 입력' ? customTime : formData.start_time;
     if (!finalStartTime) return alert("시간 입력!");
 
+    // 저장할 때는 배열을 "골드, 플래티넘" 같은 문자열로 합쳐서 전송
+    const tierString = formData.tier.join(', ');
+
     const { data: newParty, error: partyError } = await supabase
       .from('parties')
-      .insert([{ ...formData, start_time: finalStartTime, creator_nickname: nickname, current_players: 1 }])
+      .insert([{ ...formData, tier: tierString, start_time: finalStartTime, creator_nickname: nickname, current_players: 1 }])
       .select().single();
 
     if (partyError) return alert("파티 생성 실패");
     await supabase.from('party_members').insert([{ party_id: newParty.id, user_nickname: nickname }]);
     setIsCreateModalOpen(false);
     setCustomTime('');
+    setFormData({ ...formData, title: '', tier: ['상관없음'] }); // 초기화
   };
 
-
-
-
+  // ... (getRelativeTime, getStartTime 등 기존 헬퍼 함수 유지)
   const getRelativeTime = (dateString: string) => {
-  const now = new Date();
-  const past = new Date(dateString);
-  const diffInMs = now.getTime() - past.getTime();
-  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-
-  if (diffInMinutes < 1) return '방금 전';
-  if (diffInMinutes < 60) return `${diffInMinutes}분 전`;
-  
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours}시간 전`;
-  
-  return past.toLocaleDateString();
+    const now = new Date();
+    const past = new Date(dateString);
+    const diffInMs = now.getTime() - past.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    if (diffInMinutes < 1) return '방금 전';
+    if (diffInMinutes < 60) return `${diffInMinutes}분 전`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}시간 전`;
+    return past.toLocaleDateString();
   };
 
   const getStartTime = (createdAt: string, startTimeStr: string) => {
-  if (startTimeStr === '즉시 출발') return '즉시 출발';
-  
-  const created = new Date(createdAt);
-  let minutesToAdd = 0;
-
-  if (startTimeStr.includes('분 뒤')) {
-    minutesToAdd = parseInt(startTimeStr);
-  } else if (startTimeStr.includes('시간 뒤')) {
-    minutesToAdd = parseInt(startTimeStr) * 60;
-  } else {
-    return startTimeStr; // "직접 입력" 값은 그대로 반환
-  }
-
-  const startAt = new Date(created.getTime() + minutesToAdd * 60000);
-  return startAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' 시작';
+    if (startTimeStr === '즉시 출발') return '즉시 출발';
+    const created = new Date(createdAt);
+    let minutesToAdd = 0;
+    if (startTimeStr.includes('분 뒤')) minutesToAdd = parseInt(startTimeStr);
+    else if (startTimeStr.includes('시간 뒤')) minutesToAdd = parseInt(startTimeStr) * 60;
+    else return startTimeStr;
+    const startAt = new Date(created.getTime() + minutesToAdd * 60000);
+    return startAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' 시작';
   };
-
 
   return (
     <main className="min-h-screen bg-[#020617] text-slate-300 p-4 font-sans">
@@ -177,22 +184,20 @@ const getSortedParties = () => {
       </div>
 
       <div className="max-w-5xl mx-auto space-y-3">
-        {getSortedParties().map((party) => { // 정렬된 리스트 사용
+        {getSortedParties().map((party) => {
           const t = theme[party.category as keyof typeof theme] || { bg: 'bg-slate-900/20', border: 'border-white/10', text: 'text-white', accent: 'bg-white' };
           const isJoined = party.party_members?.some((m: any) => m.user_nickname === nickname);
           const isFull = party.current_players >= party.max_players;
 
           return (
             <div key={party.id} className={`${t.bg} border ${party.category === '내전' ? 'border-emerald-400 shadow-emerald-500/20' : t.border} rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-2 transition-all hover:border-white/20 shadow-xl relative overflow-hidden`}>
-              {/* 내전일 경우 상단 고정 배지 추가 */}
-              {party.category === '내전' && (
-                <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">PINNED</div>
-              )}
+              {party.category === '내전' && <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">PINNED</div>}
               
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-[12px] font-black uppercase px-2 py-0.5 rounded ${t.accent} text-black`}>{party.category}</span>
                   <span className="text-[12px] text-white font-black bg-white/10 px-2 rounded border border-white/5">{getStartTime(party.created_at, party.start_time)}</span>
+                  {/* 여러 티어 표시됨 */}
                   <span className="text-[12px] text-slate-400 font-bold">{party.tier}</span>
                   <span className="text-[12px] text-slate-600 border-l border-white/10 pl-2 font-mono uppercase tracking-tighter">{party.discord_room}</span>
                   <span className="text-[11px] text-slate-500 border-l border-white/10 pl-2 font-medium">{getRelativeTime(party.created_at)}</span>
@@ -211,18 +216,38 @@ const getSortedParties = () => {
                   {party.creator_nickname === nickname ? (
                     <button onClick={async () => { if(confirm('삭제?')) await supabase.from('parties').delete().eq('id', party.id); }} className="text-[12px] font-bold text-red-400 bg-red-400/10 px-3 py-1.5 rounded-lg border border-red-400/20 hover:bg-red-500 hover:text-white transition-all">삭제</button>
                   ) : (
-                    <button onClick={async () => {
-                      if (isJoined) {
-                        await supabase.from('party_members').delete().eq('party_id', party.id).eq('user_nickname', nickname);
-                        await supabase.from('parties').update({ current_players: Math.max(1, party.current_players - 1) }).eq('id', party.id);
-                      } else if (!isFull) {
-                        await supabase.from('party_members').insert([{ party_id: party.id, user_nickname: nickname }]);
-                        await supabase.from('parties').update({ current_players: party.current_players + 1 }).eq('id', party.id);
-                      }
-                    }} 
-                    disabled={isFull && !isJoined}
-                    className={`text-[12px] font-black px-5 py-1.5 rounded-lg transition-all ${isJoined ? 'bg-slate-700 text-white shadow-inner' : isFull ? 'bg-red-950/20 text-red-500 border border-red-500/20 cursor-not-allowed' : 'bg-white text-black shadow-lg shadow-white/5'}`}>
-                      {isJoined ? '떠나기' : isFull ? '풀방' : '참여'}
+                    <button 
+                      onClick={async () => {
+                        // [수정] 이미 처리 중이면 클릭 무시
+                        if (isProcessing) return; 
+                        setIsProcessing(party.id);
+
+                        try {
+                          if (isJoined) {
+                            await supabase.from('party_members').delete().eq('party_id', party.id).eq('user_nickname', nickname);
+                            await supabase.from('parties').update({ current_players: Math.max(1, party.current_players - 1) }).eq('id', party.id);
+                          } else if (!isFull) {
+                            // [중복 방지] 데이터베이스에 이미 있는지 한 번 더 확인 (선택 사항이지만 안전함)
+                            await supabase.from('party_members').insert([{ party_id: party.id, user_nickname: nickname }]);
+                            await supabase.from('parties').update({ current_players: party.current_players + 1 }).eq('id', party.id);
+                          }
+                        } catch (e) {
+                          console.error(e);
+                        } finally {
+                          // [수정] 처리가 끝나면(성공/실패 무관) 다시 버튼 활성화
+                          setIsProcessing(null); 
+                        }
+                      }} 
+                      // [수정] 처리 중이거나 풀방일 때 버튼 비활성화
+                      disabled={(isFull && !isJoined) || (isProcessing === party.id)}
+                      className={`text-[12px] font-black px-5 py-1.5 rounded-lg transition-all ${
+                        isJoined ? 'bg-slate-700 text-white shadow-inner' : 
+                        isFull ? 'bg-red-950/20 text-red-500 border border-red-500/20 cursor-not-allowed' : 
+                        'bg-white text-black shadow-lg shadow-white/5'
+                      } ${isProcessing === party.id ? 'opacity-50 cursor-wait' : ''}`}
+                    >
+                      {/* [수정] 처리 중일 때는 "..." 표시 */}
+                      {isProcessing === party.id ? '...' : (isJoined ? '떠나기' : isFull ? '풀방' : '참여')}
                     </button>
                   )}
                 </div>
@@ -231,10 +256,8 @@ const getSortedParties = () => {
           );
         })}
       </div>
-      {/* (모달 코드 등 나머지 200줄 이상 로직 동일하게 유지) */}
+
       <button onClick={() => setIsCreateModalOpen(true)} className="fixed bottom-8 right-8 w-14 h-14 bg-white text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl font-bold hover:scale-110 active:scale-95 transition-all z-30 shadow-white/10">+</button>
-
-
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
@@ -260,10 +283,13 @@ const getSortedParties = () => {
               </div>
 
               <div>
-                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">Required Tier</label>
+                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">Required Tier (중복 선택 가능)</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {writeTiers.map(t => (
-                    <button key={t} onClick={() => setFormData({...formData, tier: t})} className={`py-1.5 rounded-md text-[9px] font-bold border transition-all ${formData.tier === t ? 'border-white text-white bg-white/5' : 'border-white/5 text-slate-600'}`}>{t}</button>
+                    // 3. UI 체크 로직: includes로 변경
+                    <button key={t} onClick={() => handleTierClick(t)} className={`py-1.5 rounded-md text-[9px] font-bold border transition-all ${formData.tier.includes(t) ? 'border-white text-white bg-white/10' : 'border-white/5 text-slate-600'}`}>
+                      {formData.tier.includes(t) && t !== '상관없음' ? `✓ ${t}` : t}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -282,7 +308,7 @@ const getSortedParties = () => {
                 </div>
               </div>
 
-              <input className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-white/30" placeholder="파티 제목 입력" onChange={e => setFormData({...formData, title: e.target.value})} />
+              <input className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-white/30" placeholder="파티 제목 입력" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
             </div>
             <div className="flex gap-3 mt-8 pt-4 border-t border-white/5">
               <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 text-[10px] font-bold text-slate-500">취소</button>
@@ -293,35 +319,27 @@ const getSortedParties = () => {
       )}
 
       {isNickModalOpen && (
-          /* 배경을 투명도 없는 꽉 찬 검은색(bg-[#020617])으로 설정해서 뒤를 완전히 가림 */
           <div className="fixed inset-0 bg-[#020617] flex items-center justify-center z-[9999]">
             <div className="w-[380px] bg-[#111827] border-white/10 rounded-2xl p-8 shadow-2xl">
-      
               <div className="text-center pt-4">
                 <h2 className="text-xl font-bold text-white mb-1">닉네임 설정</h2>
                 <p className="text-xs text-slate-400 mb-2">예) "홍길동/전라인/골드/서울"인 경우 "홍길동"만 입력</p>
-        
-                {/* 경고 박스 */}
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-8">
                   <p className="text-red-400 text-[11px] font-bold leading-5 text-left">
                     ⚠️ 실제 닉네임과 다를 시 <span className="underline">알림 미작동</span><br/>
                     ⚠️ 장난 입력 시 <span className="underline">추후 수정 절대 불가</span>
                   </p>
                 </div>
-
-                {/* 입력창: 가독성 높은 박스 형태 */}
                 <div className="mb-8">
-
                   <input 
                     className="w-full bg-[#1f2937] border-2 border-slate-700 rounded-xl px-4 py-4 text-lg text-white outline-none 
-                               focus:border-cyan-500 transition-all text-center font-bold placeholder:text-slate-600" 
+                                focus:border-cyan-500 transition-all text-center font-bold placeholder:text-slate-600" 
                     placeholder="오픈톡 닉네임을 입력하세요" 
                     value={nickInput} 
                     onChange={(e) => setNickInput(e.target.value)} 
                     autoFocus 
                   />
                 </div>
-
                 <button 
                   onClick={() => { 
                     if(!nickInput.trim()) return alert("닉네임을 입력해주세요!"); 
