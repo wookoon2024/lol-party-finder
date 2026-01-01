@@ -46,50 +46,60 @@ export default function Home() {
   };
 
 const getSortedParties = () => {
-    // 1. 현재 시간 가져오기
-    const now = new Date().getTime();
+  const now = new Date();
+  const nowTime = now.getTime();
 
-    const filtered = parties.filter(p => {
-      // 카테고리 필터 (기존 로직 유지)
-      const isCategoryMatch = filterCat === '모두' ? true : p.category === filterCat;
+  const filtered = parties.filter(p => {
+    const isCategoryMatch = filterCat === '모두' ? true : p.category === filterCat;
+    if (!p.created_at || !isCategoryMatch) return isCategoryMatch;
+
+    const createdAt = new Date(p.created_at).getTime();
+    const isFull = p.current_players >= p.max_players;
+
+    let startOffsetMs = 0;
+    const sTime = p.start_time || "";
+
+    // 1. "N분 뒤", "N시간 뒤" 패턴 (기존 유지)
+    if (sTime.includes('분 뒤')) {
+      startOffsetMs = parseInt(sTime) * 60 * 1000;
+    } else if (sTime.includes('시간 뒤')) {
+      startOffsetMs = parseInt(sTime) * 60 * 60 * 1000;
+    } 
+    // 2. "21:30", "21시 30분", "2100" 등 절대 시각 패턴 분석
+    else if (sTime !== '즉시 출발') {
+      const nums = sTime.replace(/[^0-9]/g, ''); // 숫자만 추출 (예: "21:30" -> "2130")
       
-      // 데이터가 없거나 시간이 없으면 통과
-      if (!p.created_at) return isCategoryMatch;
+      if (nums.length >= 3) { // 최소 "900"(9시) 이상일 때만 처리
+        const hour = parseInt(nums.length === 3 ? nums.substring(0, 1) : nums.substring(0, 2));
+        const min = parseInt(nums.length === 3 ? nums.substring(1) : nums.substring(2));
 
-      // 2. 시간 파싱 (안전하게 처리)
-      const createdAt = new Date(p.created_at).getTime();
-      
-      // 만약 파싱된 시간이 숫자가 아니면(NaN) 리스트에 표시
-      if (isNaN(createdAt)) return isCategoryMatch;
-
-      const isFull = p.current_players >= p.max_players;
-
-      // [계산] 시작 시간 파싱
-      let startOffsetMs = 0;
-      if (p.start_time?.includes('분 뒤')) {
-        startOffsetMs = parseInt(p.start_time) * 60 * 1000;
-      } else if (p.start_time?.includes('시간 뒤')) {
-        startOffsetMs = parseInt(p.start_time) * 60 * 60 * 1000;
+        if (hour < 24 && min < 60) {
+          const targetDate = new Date(p.created_at); // 방 생성 날짜 기준
+          targetDate.setHours(hour, min, 0, 0);
+          
+          // 만약 설정한 시간이 생성 시간보다 이전이면 (예: 다음날 새벽) 날짜 하루 추가
+          if (targetDate.getTime() < createdAt) {
+            targetDate.setDate(targetDate.getDate() + 1);
+          }
+          startOffsetMs = targetDate.getTime() - createdAt;
+        }
       }
+    }
 
-      // [핵심 조건]
-      // A. 게임 시작 예정 시각 + 1시간 (여유시간)
-      const expireTime = createdAt + startOffsetMs + (60 * 60 * 1000);
-      const isExpired = now > expireTime;
-      
-      // B. 풀방인 경우 생성 후 1시간 지나면 삭제
-      const isFullExpired = isFull && (now > createdAt + (60 * 60 * 1000));
+    // [기준] 예약 시작 시간 + 1시간(여유) 지나면 삭제
+    const expireTime = createdAt + startOffsetMs + (60 * 60 * 1000);
+    const isExpired = nowTime > expireTime;
+    
+    // [기준] 풀방인 경우 생성 1시간 뒤 삭제
+    const isFullExpired = isFull && (nowTime > createdAt + (60 * 60 * 1000));
 
-      // 디버깅용: 만약 하나도 안 뜨면 아래 return을 "return isCategoryMatch;"로 바꿔서 확인해봐
-      return isCategoryMatch && !isExpired && !isFullExpired;
-    });
+    return !isExpired && !isFullExpired;
+  });
 
-    // 기존 내전 정렬 로직 유지
-    const naejeon = filtered.filter(p => p.category === '내전');
-    const others = filtered.filter(p => p.category !== '내전');
-
-    return [...naejeon, ...others];
-  };
+  const naejeon = filtered.filter(p => p.category === '내전');
+  const others = filtered.filter(p => p.category !== '내전');
+  return [...naejeon, ...others];
+};
 
   const handleCategory = (cat: string) => {
     let max = 5;
