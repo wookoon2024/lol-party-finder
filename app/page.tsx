@@ -13,17 +13,17 @@ export default function Home() {
   const [filterCat, setFilterCat] = useState('모두');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  const categories = ['모두', '솔랭', '자랭', '칼바람', '롤체', '내전','기타게임'];
+  const categories = ['모두', '솔랭', '자랭', '칼바람', '롤체', '내전', '기타게임'];
   const writeTiers = ['상관없음', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메럴드', '다이아', '마스터+'];
   const timeOptions = ['즉시 출발', '5분 뒤', '10분 뒤', '30분 뒤', '1시간 뒤', '직접 입력'];
 
-  const theme = {
+const theme = {
     '솔랭': { bg: 'bg-cyan-950/40', border: 'border-cyan-500/50', text: 'text-cyan-400', accent: 'bg-cyan-500' },
     '자랭': { bg: 'bg-pink-950/40', border: 'border-pink-500/50', text: 'text-pink-400', accent: 'bg-pink-500' },
     '칼바람': { bg: 'bg-purple-950/40', border: 'border-purple-500/50', text: 'text-purple-400', accent: 'bg-purple-500' },
     '롤체': { bg: 'bg-yellow-950/40', border: 'border-yellow-500/50', text: 'text-yellow-400', accent: 'bg-yellow-500' },
     '내전': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
-    '기타': { bg: 'bg-orange-950/40', border: 'border-orange-500/50', text: 'text-orange-400', accent: 'bg-orange-500' },
+    '기타게임': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
   };
 
   const [formData, setFormData] = useState({ 
@@ -47,28 +47,23 @@ export default function Home() {
     setParties(data || []);
   };
 
-  // 참여/떠나기 로직 분리 (연타 방지 핵심)
   const handleJoinLeave = async (party: any) => {
-    if (isProcessing) return; // 전역 처리 중이면 차단
-    
+    if (isProcessing) return;
     setIsProcessing(party.id);
     const isJoined = party.party_members?.some((m: any) => m.user_nickname === nickname);
     const isFull = party.current_players >= party.max_players;
 
     try {
       if (isJoined) {
-        // 떠나기
         await supabase.from('party_members').delete().eq('party_id', party.id).eq('user_nickname', nickname);
         await supabase.from('parties').update({ current_players: Math.max(1, party.current_players - 1) }).eq('id', party.id);
       } else if (!isFull) {
-        // 참여하기
         await supabase.from('party_members').insert([{ party_id: party.id, user_nickname: nickname }]);
         await supabase.from('parties').update({ current_players: party.current_players + 1 }).eq('id', party.id);
       }
     } catch (e) {
       console.error(e);
     } finally {
-      // 0.5초 뒤에 락 해제 (서버 반영 시간 확보)
       setTimeout(() => setIsProcessing(null), 500);
     }
   };
@@ -98,8 +93,9 @@ export default function Home() {
           }
         }
       }
-      const expireTime = createdAt + startOffsetMs + (60 * 60 * 1000);
-      return nowTime <= expireTime && !(isFull && (nowTime > createdAt + (60 * 60 * 1000)));
+      // 💡 유지 시간 3시간(180분)으로 연장
+      const expireTime = createdAt + startOffsetMs + (3 * 60 * 60 * 1000);
+      return nowTime <= expireTime && !(isFull && (nowTime > createdAt + (3 * 60 * 60 * 1000)));
     });
     const naejeon = filtered.filter(p => p.category === '내전');
     const others = filtered.filter(p => p.category !== '내전');
@@ -112,7 +108,7 @@ export default function Home() {
     if (cat === '솔랭') max = 2; 
     else if (cat === '내전') { max = 10; room = '내전 대기방'; }
     else if (cat === '롤체') max = 8;
-    else if (cat === '기타') max = 5; // 기타 게임 기본값
+    else if (cat === '기타게임') max = 5;
     setFormData({ ...formData, category: cat, max_players: max, discord_room: room });
   };
 
@@ -132,7 +128,6 @@ export default function Home() {
   const handleSubmit = async () => {
     if (!formData.title) return alert("제목 입력!");
     const finalStartTime = formData.start_time === '직접 입력' ? customTime : formData.start_time;
-    if (!finalStartTime) return alert("시간 입력!");
     const tierString = formData.tier.join(', ');
     const { data: newParty, error: partyError } = await supabase
       .from('parties')
@@ -232,7 +227,7 @@ export default function Home() {
           <div className="mt-16 flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
               <div className="text-4xl mb-4">🎮</div>
               <h3 className="text-white font-bold text-[15px] mb-2">현재 모집 중인 파티가 없습니다.</h3>
-              <p className="text-slate-500 text-[12px] leading-6 mb-6">파티는 <span className="text-cyan-400">출발 시간으로부터 1시간</span> 동안 유지됩니다.<br/>직접 방을 만들고 오픈톡 친구들을 초대해 보세요!</p>
+              <p className="text-slate-500 text-[12px] leading-6 mb-6">파티는 <span className="text-cyan-400">출발 시간으로부터 3시간</span> 동안 유지됩니다.<br/>직접 방을 만들고 오픈톡 친구들을 초대해 보세요!</p>
               <button onClick={() => setIsCreateModalOpen(true)} className="bg-white text-black px-10 py-4 rounded-xl text-[13px] font-black hover:scale-105 transition-all shadow-lg shadow-white/5">파티 만들기</button>
           </div>
         )}
@@ -243,7 +238,7 @@ export default function Home() {
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
           <div className="bg-[#0f172a] border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h2 className="text-[12px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">방 만들기</h2>
+            <h2 className="text-[10px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">방 만들기</h2>
             <div className="space-y-4">
               <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
                 {categories.filter(c => c !== '모두').map(c => (
@@ -295,9 +290,9 @@ export default function Home() {
             <div className="w-[380px] bg-[#111827] border-white/10 rounded-2xl p-8 shadow-2xl">
               <div className="text-center pt-4">
                 <h2 className="text-xl font-bold text-white mb-1">닉네임 설정</h2>
-                <p className="text-xs text-slate-400 mb-2">"홍길동/골드/미드/서울"인 경우 "홍길동"만 입력</p>
+                <p className="text-xs text-slate-400 mb-2">오픈톡 닉네임만 입력해줘</p>
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-8 text-left text-red-400 text-[11px] font-bold leading-5">
-                  ⚠️ 실제 닉네임과 다를 시 카카오톡 알람 미작동<br/>⚠️ 장난스러운 입력 절대 금지
+                  ⚠️ 실제 닉네임과 다를 시 알림 미작동<br/>⚠️ 장난 입력 시 추후 수정 절대 불가
                 </div>
                 <input className="w-full bg-[#1f2937] border-2 border-slate-700 rounded-xl px-4 py-4 text-lg text-white outline-none focus:border-cyan-500 transition-all text-center font-bold mb-8" placeholder="닉네임 입력" value={nickInput} onChange={(e) => setNickInput(e.target.value)} autoFocus />
                 <button onClick={() => { if(!nickInput.trim()) return; localStorage.setItem('lol_nickname', nickInput); setNickname(nickInput); setIsNickModalOpen(false); }} className="w-full bg-cyan-500 hover:bg-cyan-400 py-4 rounded-xl text-[#020617] font-black text-base transition-all active:scale-95 shadow-lg shadow-cyan-500/20">입장하기</button>
