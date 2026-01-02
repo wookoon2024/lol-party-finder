@@ -13,7 +13,7 @@ export default function Home() {
   const [filterCat, setFilterCat] = useState('모두');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  const categories = ['모두', '솔랭', '자랭', '칼바람', '롤체', '내전'];
+  const categories = ['모두', '솔랭', '자랭', '칼바람', '롤체', '내전','기타게임'];
   const writeTiers = ['상관없음', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메럴드', '다이아', '마스터+'];
   const timeOptions = ['즉시 출발', '5분 뒤', '10분 뒤', '30분 뒤', '1시간 뒤', '직접 입력'];
 
@@ -23,6 +23,7 @@ export default function Home() {
     '칼바람': { bg: 'bg-purple-950/40', border: 'border-purple-500/50', text: 'text-purple-400', accent: 'bg-purple-500' },
     '롤체': { bg: 'bg-yellow-950/40', border: 'border-yellow-500/50', text: 'text-yellow-400', accent: 'bg-yellow-500' },
     '내전': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
+    '기타': { bg: 'bg-orange-950/40', border: 'border-orange-500/50', text: 'text-orange-400', accent: 'bg-orange-500' },
   };
 
   const [formData, setFormData] = useState({ 
@@ -111,6 +112,7 @@ export default function Home() {
     if (cat === '솔랭') max = 2; 
     else if (cat === '내전') { max = 10; room = '내전 대기방'; }
     else if (cat === '롤체') max = 8;
+    else if (cat === '기타') max = 5; // 기타 게임 기본값
     setFormData({ ...formData, category: cat, max_players: max, discord_room: room });
   };
 
@@ -241,7 +243,7 @@ export default function Home() {
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
           <div className="bg-[#0f172a] border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h2 className="text-[10px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">방 만들기</h2>
+            <h2 className="text-[12px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">방 만들기</h2>
             <div className="space-y-4">
               <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
                 {categories.filter(c => c !== '모두').map(c => (
@@ -293,9 +295,9 @@ export default function Home() {
             <div className="w-[380px] bg-[#111827] border-white/10 rounded-2xl p-8 shadow-2xl">
               <div className="text-center pt-4">
                 <h2 className="text-xl font-bold text-white mb-1">닉네임 설정</h2>
-                <p className="text-xs text-slate-400 mb-2">오픈톡 닉네임만 입력해줘</p>
+                <p className="text-xs text-slate-400 mb-2">"홍길동/골드/미드/서울"인 경우 "홍길동"만 입력</p>
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-8 text-left text-red-400 text-[11px] font-bold leading-5">
-                  ⚠️ 실제 닉네임과 다를 시 알림 미작동<br/>⚠️ 장난 입력 시 추후 수정 절대 불가
+                  ⚠️ 실제 닉네임과 다를 시 카카오톡 알람 미작동<br/>⚠️ 장난스러운 입력 절대 금지
                 </div>
                 <input className="w-full bg-[#1f2937] border-2 border-slate-700 rounded-xl px-4 py-4 text-lg text-white outline-none focus:border-cyan-500 transition-all text-center font-bold mb-8" placeholder="닉네임 입력" value={nickInput} onChange={(e) => setNickInput(e.target.value)} autoFocus />
                 <button onClick={() => { if(!nickInput.trim()) return; localStorage.setItem('lol_nickname', nickInput); setNickname(nickInput); setIsNickModalOpen(false); }} className="w-full bg-cyan-500 hover:bg-cyan-400 py-4 rounded-xl text-[#020617] font-black text-base transition-all active:scale-95 shadow-lg shadow-cyan-500/20">입장하기</button>
