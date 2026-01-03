@@ -13,18 +13,19 @@ export default function Home() {
   const [filterCat, setFilterCat] = useState('모두');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  const categories = ['모두', '솔랭', '자랭', '칼바람', '롤체', '내전', '기타게임'];
+  const categories = ['모두', '솔랭', '일반', '자랭', '칼바', '롤체', '내전', '기타'];
   const writeTiers = ['상관없음', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메럴드', '다이아', '마스터+'];
   const timeOptions = ['즉시 출발', '5분 뒤', '10분 뒤', '30분 뒤', '1시간 뒤', '직접 입력'];
 
 const theme = {
     '솔랭': { bg: 'bg-cyan-950/40', border: 'border-cyan-500/50', text: 'text-cyan-400', accent: 'bg-cyan-500' },
     '자랭': { bg: 'bg-pink-950/40', border: 'border-pink-500/50', text: 'text-pink-400', accent: 'bg-pink-500' },
-    '칼바람': { bg: 'bg-purple-950/40', border: 'border-purple-500/50', text: 'text-purple-400', accent: 'bg-purple-500' },
+    '칼바': { bg: 'bg-purple-950/40', border: 'border-purple-500/50', text: 'text-purple-400', accent: 'bg-purple-500' },
     '롤체': { bg: 'bg-yellow-950/40', border: 'border-yellow-500/50', text: 'text-yellow-400', accent: 'bg-yellow-500' },
     '내전': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
-    '기타게임': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
-  };
+    '일반': { bg: 'bg-blue-950/40', border: 'border-blue-500/50', text: 'text-blue-400', accent: 'bg-blue-500' }, // 일반 추가
+    '기타': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
+};
 
   const [formData, setFormData] = useState({ 
     category: '솔랭', title: '', tier: ['상관없음'] as string[], max_players: 2, discord_room: '솔랭 1번방', start_time: '즉시 출발' 
@@ -68,49 +69,64 @@ const theme = {
     }
   };
 
-  const getSortedParties = () => {
+    const getSortedParties = () => {
     const now = new Date();
     const nowTime = now.getTime();
+    
+    // 1. 시간 및 카테고리 필터링 (기존 로직 유지)
     const filtered = parties.filter(p => {
       const isCategoryMatch = filterCat === '모두' ? true : p.category === filterCat;
       if (!p.created_at || !isCategoryMatch) return isCategoryMatch;
+      
       const createdAt = new Date(p.created_at).getTime();
       const isFull = p.current_players >= p.max_players;
       let startOffsetMs = 0;
       const sTime = p.start_time || "";
+      
       if (sTime.includes('분 뒤')) startOffsetMs = parseInt(sTime) * 60 * 1000;
       else if (sTime.includes('시간 뒤')) startOffsetMs = parseInt(sTime) * 60 * 60 * 1000;
       else if (sTime !== '즉시 출발') {
         const nums = sTime.replace(/[^0-9]/g, '');
         if (nums.length >= 3) {
-          const hour = parseInt(nums.length === 3 ? nums.substring(0, 1) : nums.substring(0, 2));
-          const min = parseInt(nums.length === 3 ? nums.substring(1) : nums.substring(2));
-          if (hour < 24 && min < 60) {
-            const targetDate = new Date(p.created_at);
-            targetDate.setHours(hour, min, 0, 0);
-            if (targetDate.getTime() < createdAt) targetDate.setDate(targetDate.getDate() + 1);
-            startOffsetMs = targetDate.getTime() - createdAt;
-          }
+          const hour = parseInt(nums.substring(0, nums.length === 3 ? 1 : 2));
+          const min = parseInt(nums.substring(nums.length === 3 ? 1 : 2));
+          const targetDate = new Date(p.created_at);
+          targetDate.setHours(hour, min, 0, 0);
+          if (targetDate.getTime() < createdAt) targetDate.setDate(targetDate.getDate() + 1);
+          startOffsetMs = targetDate.getTime() - createdAt;
         }
       }
-      // 💡 유지 시간 3시간(180분)으로 연장
+      
       const expireTime = createdAt + startOffsetMs + (3 * 60 * 60 * 1000);
       return nowTime <= expireTime && !(isFull && (nowTime > createdAt + (3 * 60 * 60 * 1000)));
     });
-    const naejeon = filtered.filter(p => p.category === '내전');
-    const others = filtered.filter(p => p.category !== '내전');
-    return [...naejeon, ...others];
+
+    // 2. 정렬 로직 (모집 중인 방 우선 + 내전 우선)
+    return filtered.sort((a, b) => {
+      const aFull = a.current_players >= a.max_players;
+      const bFull = b.current_players >= b.max_players;
+
+      // 우선순위 1: 풀방인 경우 뒤로 보냄
+      if (aFull !== bFull) return aFull ? 1 : -1;
+
+      // 우선순위 2: '내전' 카테고리 최상단 고정
+      if (a.category === '내전' && b.category !== '내전') return -1;
+      if (a.category !== '내전' && b.category === '내전') return 1;
+
+      // 우선순위 3: 최신순 정렬
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   };
 
-  const handleCategory = (cat: string) => {
+const handleCategory = (cat: string) => {
     let max = 5;
     let room = `${cat} 1번방`;
     if (cat === '솔랭') max = 2; 
     else if (cat === '내전') { max = 10; room = '내전 대기방'; }
     else if (cat === '롤체') max = 8;
-    else if (cat === '기타게임') max = 5;
+    else if (cat === '일반' || cat === '기타') max = 5; // 일반/기타 5명 고정
     setFormData({ ...formData, category: cat, max_players: max, discord_room: room });
-  };
+};
 
   const handleTierClick = (t: string) => {
     let newTiers = [...formData.tier];
@@ -224,7 +240,7 @@ const theme = {
             );
           })
         ) : (
-          <div className="mt-16 flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+          <div className="mt-1 flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
               <div className="text-4xl mb-4">🎮</div>
               <h3 className="text-white font-bold text-[15px] mb-2">현재 모집 중인 파티가 없습니다.</h3>
               <p className="text-slate-500 text-[12px] leading-6 mb-6">파티는 <span className="text-cyan-400">출발 시간으로부터 3시간</span> 동안 유지됩니다.<br/>직접 방을 만들고 오픈톡 친구들을 초대해 보세요!</p>
