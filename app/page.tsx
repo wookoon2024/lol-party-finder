@@ -12,6 +12,7 @@ export default function Home() {
   const [parties, setParties] = useState<any[]>([]);
   const [filterCat, setFilterCat] = useState('모두');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [withFriends, setWithFriends] = useState(''); // 지인 닉네임 입력용
 
   const categories = ['모두', '솔랭', '일반', '자랭', '칼바', '롤체', '내전', '기타'];
   const writeTiers = ['상관없음', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메럴드', '다이아', '마스터+'];
@@ -141,17 +142,48 @@ const handleCategory = (cat: string) => {
     setFormData({ ...formData, tier: newTiers });
   };
 
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
     if (!formData.title) return alert("제목 입력!");
+
+    // 1. 지인 명단 정리 (쉼표 기준)
+    const friendList = withFriends.split(',')
+      .map(name => name.trim())
+      .filter(name => name !== "" && name !== nickname); // ← 여기서 본인 닉네임(nickname)은 무조건 제외! 
+    
+    const totalInitialPlayers = 1 + friendList.length; // 방장 + 지인들
+
+    if (totalInitialPlayers > formData.max_players) {
+      return alert(`최대 인원(${formData.max_players}명)을 초과할 수 없어!`);
+    }
+
     const finalStartTime = formData.start_time === '직접 입력' ? customTime : formData.start_time;
     const tierString = formData.tier.join(', ');
+
+    // 2. 파티 생성 (현재 인원을 합산된 숫자로 저장)
     const { data: newParty, error: partyError } = await supabase
       .from('parties')
-      .insert([{ ...formData, tier: tierString, start_time: finalStartTime, creator_nickname: nickname, current_players: 1 }])
+      .insert([{ 
+        ...formData, 
+        tier: tierString, 
+        start_time: finalStartTime, 
+        creator_nickname: nickname, 
+        current_players: totalInitialPlayers 
+      }])
       .select().single();
+
     if (partyError) return alert("파티 생성 실패");
-    await supabase.from('party_members').insert([{ party_id: newParty.id, user_nickname: nickname }]);
+
+    // 3. 참여자 명단 일괄 등록 (방장 + 지인들)
+    const allMembers = [
+      { party_id: newParty.id, user_nickname: nickname },
+      ...friendList.map(name => ({ party_id: newParty.id, user_nickname: name }))
+    ];
+
+    await supabase.from('party_members').insert(allMembers);
+
+    // 4. 초기화
     setIsCreateModalOpen(false);
+    setWithFriends('');
     setCustomTime('');
     setFormData({ ...formData, title: '', tier: ['상관없음'] });
   };
@@ -253,16 +285,16 @@ const handleCategory = (cat: string) => {
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
-          <div className="bg-[#0f172a] border border-white/10 p-6 rounded-2xl max-w-sm w-full shadow-2xl overflow-y-auto max-h-[90vh]">
-            <h2 className="text-[10px] font-black text-white mb-6 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-4 ">방 만들기</h2>
-            <div className="space-y-4">
+          <div className="bg-[#0f172a] border border-white/10 p-4 rounded-2xl max-w-sm w-full shadow-2xl overflow-y-auto max-h-[90vh]">
+            <h2 className="text-[12px] font-black text-white mb-3 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-2 ">방 만들기</h2>
+            <div className="space-y-2">
               <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
                 {categories.filter(c => c !== '모두').map(c => (
                   <button key={c} onClick={() => handleCategory(c)} className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${formData.category === c ? 'bg-white text-black' : 'bg-white/5 text-slate-500'}`}>{c}</button>
                 ))}
               </div>
               <div>
-                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">Start Time</label>
+                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">시작시간</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {timeOptions.map(t => (
                     <button key={t} onClick={() => setFormData({...formData, start_time: t})} className={`py-1.5 rounded-md text-[9px] font-bold border transition-all ${formData.start_time === t ? 'border-white text-white bg-white/5' : 'border-white/5 text-slate-600 hover:bg-white/5'}`}>{t}</button>
@@ -273,7 +305,7 @@ const handleCategory = (cat: string) => {
                 )}
               </div>
               <div>
-                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">Required Tier</label>
+                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">티어설정</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {writeTiers.map(t => (
                     <button key={t} onClick={() => handleTierClick(t)} className={`py-1.5 rounded-md text-[9px] font-bold border transition-all ${formData.tier.includes(t) ? 'border-white text-white bg-white/10' : 'border-white/5 text-slate-600'}`}>
@@ -283,9 +315,9 @@ const handleCategory = (cat: string) => {
                 </div>
               </div>
               <div>
-                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase ">Discord Room</label>
+                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase "></label>
                 <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span className="text-[10px] font-bold text-slate-400">SELECT ROOM</span>
+                  <span className="text-[10px] font-bold text-slate-400">디스코드</span>
                   <select className="bg-transparent text-white font-bold outline-none cursor-pointer text-[11px] text-center" value={formData.discord_room} onChange={e => setFormData({...formData, discord_room: e.target.value})}>
                     {formData.category === '내전' ? <option value="내전 대기방">내전 대기방</option> : [1,2,3,4,5].map(n => <option key={n} className="bg-[#0f172a]" value={`${formData.category} ${n}번방`}>{n}번방</option>)}
                   </select>
@@ -293,6 +325,16 @@ const handleCategory = (cat: string) => {
               </div>
               <input className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-white/30" placeholder="파티 제목 입력" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
             </div>
+            <div className="mt-2">
+              <input 
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-cyan-400 outline-none focus:border-cyan-500/50" 
+                placeholder="[함께하는 멤버] 예: 홍길동, 김철수 (쉼표로 구분해서 작성해줘)" 
+                value={withFriends} 
+                onChange={e => setWithFriends(e.target.value)} 
+              />
+              
+            </div>
+
             <div className="flex gap-3 mt-8 pt-4 border-t border-white/5">
               <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 text-[10px] font-bold text-slate-500">취소</button>
               <button onClick={handleSubmit} className="flex-1 py-3 text-[10px] bg-white text-black font-black rounded-xl hover:bg-slate-200">확인</button>
