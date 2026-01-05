@@ -125,7 +125,11 @@ const handleCategory = (cat: string) => {
     if (cat === '솔랭') max = 2; 
     else if (cat === '내전') { max = 10; room = '내전 대기방'; }
     else if (cat === '롤체') max = 8;
-    else if (cat === '일반' || cat === '기타') max = 5; // 일반/기타 5명 고정
+    else if (cat === '일반') max = 5; // 일반/기타 5명 고정
+    else if (cat === '기타') {
+    max = 99; // 기타는 인원 제한 사실상 무제한
+    room = '자유 대기방';
+  }
     setFormData({ ...formData, category: cat, max_players: max, discord_room: room });
 };
 
@@ -285,7 +289,7 @@ const handleSubmit = async () => {
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
-          <div className="bg-[#0f172a] border border-white/10 p-4 rounded-2xl max-w-sm w-full shadow-2xl overflow-y-auto max-h-[90vh]">
+          <div className="bg-[#0f172a] border border-white/10 p-4 rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden">
             <h2 className="text-[12px] font-black text-white mb-3 uppercase tracking-[0.2em] text-center border-b border-white/5 pb-2 ">방 만들기</h2>
             <div className="space-y-2">
               <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
@@ -315,25 +319,50 @@ const handleSubmit = async () => {
                 </div>
               </div>
               <div>
-                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase "></label>
+                <label className="text-[9px] text-slate-500 font-bold mb-2 block uppercase">디스코드 채널</label>
                 <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span className="text-[10px] font-bold text-slate-400">디스코드</span>
-                  <select className="bg-transparent text-white font-bold outline-none cursor-pointer text-[11px] text-center" value={formData.discord_room} onChange={e => setFormData({...formData, discord_room: e.target.value})}>
-                    {formData.category === '내전' ? <option value="내전 대기방">내전 대기방</option> : [1,2,3,4,5].map(n => <option key={n} className="bg-[#0f172a]" value={`${formData.category} ${n}번방`}>{n}번방</option>)}
+                  <span className="text-[10px] font-bold text-slate-400">채널 선택</span>
+                  <select 
+                    className="bg-transparent text-white font-bold outline-none cursor-pointer text-[11px] text-center" 
+                    value={formData.discord_room} 
+                    onChange={e => setFormData({...formData, discord_room: e.target.value})}
+                  >
+                    {/* 1. 내전일 때 */}
+                    {formData.category === '내전' ? (
+                      <option className="bg-[#0f172a]" value="내전 대기방">내전 대기방</option>
+                    ) 
+                    /* 2. 기타일 때 */
+                    : formData.category === '기타' ? (
+                      <option className="bg-[#0f172a]" value="자유 대기방">자유 대기방</option>
+                    ) 
+                    /* 3. 그 외 (롤 카테고리) */
+                    : (
+                      [1,2,3,4,5].map(n => (
+                        <option key={n} className="bg-[#0f172a]" value={`${formData.category} ${n}번방`}>
+                          {n}번방
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
-              <input className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-white/30" placeholder="파티 제목 입력" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
-            </div>
-            <div className="mt-2">
+
               <input 
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-xs text-cyan-400 outline-none focus:border-cyan-500/50" 
-                placeholder="[함께하는 멤버] 예: 홍길동, 김철수 (쉼표로 구분해서 작성해줘)" 
+              className="w-full bg-white/10 border-2 border-cyan-500/30 rounded-xl p-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-cyan-400 transition-all shadow-inner" 
+              placeholder="파티 제목 입력" 
+              value={formData.title} 
+              onChange={e => setFormData({...formData, title: e.target.value})} 
+            />
+            </div>
+            <div className="mt-2 space-y-1">
+              <input 
+                className="w-full bg-white/10 border-2 border-pink-500/30 rounded-xl p-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-pink-400 transition-all shadow-inner" 
+                placeholder="[함께하는 멤버] 예: 홍길동, 김철수 (쉼표로 구분)" 
                 value={withFriends} 
                 onChange={e => setWithFriends(e.target.value)} 
               />
-              
             </div>
+            
 
             <div className="flex gap-3 mt-8 pt-4 border-t border-white/5">
               <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 text-[10px] font-bold text-slate-500">취소</button>
