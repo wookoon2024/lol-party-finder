@@ -7,6 +7,7 @@ export default function Home() {
   const [nickname, setNickname] = useState<string>('');
   const [isNickModalOpen, setIsNickModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false); // 개인정보 모달 상태 추가
   const [nickInput, setNickInput] = useState('');
   const [customTime, setCustomTime] = useState(''); 
   const [parties, setParties] = useState<any[]>([]);
@@ -18,15 +19,15 @@ export default function Home() {
   const writeTiers = ['상관없음', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메럴드', '다이아', '마스터+'];
   const timeOptions = ['즉시 출발', '5분 뒤', '10분 뒤', '30분 뒤', '1시간 뒤', '직접 입력'];
 
-const theme = {
+  const theme = {
     '솔랭': { bg: 'bg-cyan-950/40', border: 'border-cyan-500/50', text: 'text-cyan-400', accent: 'bg-cyan-500' },
     '자랭': { bg: 'bg-pink-950/40', border: 'border-pink-500/50', text: 'text-pink-400', accent: 'bg-pink-500' },
     '칼바': { bg: 'bg-purple-950/40', border: 'border-purple-500/50', text: 'text-purple-400', accent: 'bg-purple-500' },
     '롤체': { bg: 'bg-yellow-950/40', border: 'border-yellow-500/50', text: 'text-yellow-400', accent: 'bg-yellow-500' },
     '내전': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
-    '일반': { bg: 'bg-blue-950/40', border: 'border-blue-500/50', text: 'text-blue-400', accent: 'bg-blue-500' }, // 일반 추가
+    '일반': { bg: 'bg-blue-950/40', border: 'border-blue-500/50', text: 'text-blue-400', accent: 'bg-blue-500' },
     '기타': { bg: 'bg-emerald-950/40', border: 'border-emerald-500/50', text: 'text-emerald-400', accent: 'bg-emerald-500' },
-};
+  };
 
   const [formData, setFormData] = useState({ 
     category: '솔랭', title: '', tier: ['상관없음'] as string[], max_players: 2, discord_room: '솔랭 1번방', start_time: '즉시 출발' 
@@ -70,11 +71,10 @@ const theme = {
     }
   };
 
-    const getSortedParties = () => {
+  const getSortedParties = () => {
     const now = new Date();
     const nowTime = now.getTime();
     
-    // 1. 시간 및 카테고리 필터링 (기존 로직 유지)
     const filtered = parties.filter(p => {
       const isCategoryMatch = filterCat === '모두' ? true : p.category === filterCat;
       if (!p.created_at || !isCategoryMatch) return isCategoryMatch;
@@ -102,36 +102,29 @@ const theme = {
       return nowTime <= expireTime && !(isFull && (nowTime > createdAt + (3 * 60 * 60 * 1000)));
     });
 
-    // 2. 정렬 로직 (모집 중인 방 우선 + 내전 우선)
     return filtered.sort((a, b) => {
       const aFull = a.current_players >= a.max_players;
       const bFull = b.current_players >= b.max_players;
-
-      // 우선순위 1: 풀방인 경우 뒤로 보냄
       if (aFull !== bFull) return aFull ? 1 : -1;
-
-      // 우선순위 2: '내전' 카테고리 최상단 고정
       if (a.category === '내전' && b.category !== '내전') return -1;
       if (a.category !== '내전' && b.category === '내전') return 1;
-
-      // 우선순위 3: 최신순 정렬
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   };
 
-const handleCategory = (cat: string) => {
+  const handleCategory = (cat: string) => {
     let max = 5;
     let room = `${cat} 1번방`;
     if (cat === '솔랭') max = 2; 
     else if (cat === '내전') { max = 10; room = '내전 대기방'; }
     else if (cat === '롤체') max = 8;
-    else if (cat === '일반') max = 5; // 일반/기타 5명 고정
+    else if (cat === '일반') max = 5;
     else if (cat === '기타') {
-    max = 99; // 기타는 인원 제한 사실상 무제한
-    room = '자유 대기방';
-  }
+      max = 99;
+      room = '자유 대기방';
+    }
     setFormData({ ...formData, category: cat, max_players: max, discord_room: room });
-};
+  };
 
   const handleTierClick = (t: string) => {
     let newTiers = [...formData.tier];
@@ -146,15 +139,10 @@ const handleCategory = (cat: string) => {
     setFormData({ ...formData, tier: newTiers });
   };
 
-const handleSubmit = async () => {
+  const handleSubmit = async () => {
     if (!formData.title) return alert("제목 입력!");
-
-    // 1. 지인 명단 정리 (쉼표 기준)
-    const friendList = withFriends.split(',')
-      .map(name => name.trim())
-      .filter(name => name !== "" && name !== nickname); // ← 여기서 본인 닉네임(nickname)은 무조건 제외! 
-    
-    const totalInitialPlayers = 1 + friendList.length; // 방장 + 지인들
+    const friendList = withFriends.split(',').map(name => name.trim()).filter(name => name !== "" && name !== nickname); 
+    const totalInitialPlayers = 1 + friendList.length;
 
     if (totalInitialPlayers > formData.max_players) {
       return alert(`최대 인원(${formData.max_players}명)을 초과할 수 없어!`);
@@ -163,7 +151,6 @@ const handleSubmit = async () => {
     const finalStartTime = formData.start_time === '직접 입력' ? customTime : formData.start_time;
     const tierString = formData.tier.join(', ');
 
-    // 2. 파티 생성 (현재 인원을 합산된 숫자로 저장)
     const { data: newParty, error: partyError } = await supabase
       .from('parties')
       .insert([{ 
@@ -177,15 +164,12 @@ const handleSubmit = async () => {
 
     if (partyError) return alert("파티 생성 실패");
 
-    // 3. 참여자 명단 일괄 등록 (방장 + 지인들)
     const allMembers = [
       { party_id: newParty.id, user_nickname: nickname },
       ...friendList.map(name => ({ party_id: newParty.id, user_nickname: name }))
     ];
-
     await supabase.from('party_members').insert(allMembers);
 
-    // 4. 초기화
     setIsCreateModalOpen(false);
     setWithFriends('');
     setCustomTime('');
@@ -215,14 +199,14 @@ const handleSubmit = async () => {
   };
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-300 p-4 font-sans">
+    <main className="min-h-screen bg-[#020617] text-slate-300 p-4 font-sans relative">
       <div className="max-w-5xl mx-auto flex justify-between items-center py-0 border-b border-white/5 mb-6">
           <h1 className="text-[16px] font-black text-white tracking-tighter uppercase">롤 파티 구하기</h1>
           <div className="flex items-center gap-2">
             <div className="text-[12px] font-bold text-cyan-400 border border-cyan-400/30 px-4 py-1 rounded-md bg-cyan-400/5">{nickname}</div>
             <button onClick={() => { if(confirm('닉네임을 다시 설정하시겠습니까?')) { localStorage.removeItem('lol_nickname'); window.location.reload(); } }} className="text-[10px] font-bold text-slate-500 hover:text-white border border-white/10 px-2 py-1 rounded-md transition-all">재설정</button>
           </div>
-        </div>
+      </div>
 
       <div className="max-w-5xl mx-auto flex gap-2 mb-2 overflow-x-auto pb-2 scrollbar-hide">
         {categories.map(c => (
@@ -285,8 +269,85 @@ const handleSubmit = async () => {
         )}
       </div>
 
+      {/* 푸터 영역 - 개인정보처리방침 링크 */}
+      <footer className="max-w-5xl mx-auto mt-16 pb-12 border-t border-white/5 pt-8 text-center">
+        <button 
+          onClick={() => setIsPrivacyOpen(true)}
+          className="text-[11px] font-bold text-slate-600 hover:text-slate-300 transition-colors underline underline-offset-4"
+        >
+          개인정보처리방침
+        </button>
+        <p className="text-[10px] text-slate-700 mt-2">© 롤 같이 할래 오픈톡방. All rights reserved.</p>
+      </footer>
+
       <button onClick={() => setIsCreateModalOpen(true)} className="fixed bottom-8 right-8 w-14 h-14 bg-white text-black rounded-2xl shadow-2xl flex items-center justify-center text-2xl font-bold hover:scale-110 active:scale-95 transition-all z-30 shadow-white/10">+</button>
 
+{/* 개인정보처리방침 모달 */}
+      {isPrivacyOpen && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-[10001] p-4">
+          <div className="bg-[#0f172a] border border-white/10 p-6 rounded-2xl max-w-xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+            <h2 className="text-lg font-black text-white mb-4 flex items-center gap-2 uppercase tracking-tighter">
+              <span className="text-cyan-400">🛡️</span> 개인정보 처리방침
+            </h2>
+            <div className="flex-1 overflow-y-auto pr-2 text-[12px] leading-6 text-slate-400 space-y-5 font-sans scrollbar-hide">
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">1. 개인정보의 처리 목적</h3>
+                <p>본 서비스는 롤 오픈톡방 파티 매칭 및 사용자 식별, 중복 참여 방지를 위해 최소한의 정보를 수집합니다.</p>
+              </section>
+
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">2. 처리하는 개인정보의 항목</h3>
+                {/* 네가 제안한 대로 수정했어 */}
+                <p>필수항목: 사용자가 설정한 닉네임</p>
+                <p>선택항목: 파티 매칭을 위해 입력하는 최소한의 게임 정보(방 제목, 티어, 시간 등).</p>
+              </section>
+
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">3. 개인정보의 보유 및 이용기간</h3>
+                <p>보유기간: 서비스 종료 시까지</p>
+              </section>
+
+             <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">4. 개인정보의 파기절차 및 방법</h3>
+                <p>서비스 운영 종료 또는 수집 목적 달성 시 해당 정보를 지체 없이 파기합니다.</p>
+             </section>
+
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">5. 정보주체의 권리 및 행사방법</h3>
+                <p>사용자는 언제든지 본인의 정보를 수정하거나 삭제를 요청할 권리가 있으며, 닉네임 재설정 기능을 통해 즉시 행사할 수 있습니다.</p>
+              </section>
+
+             <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">6. 개인정보의 안전성 확보 조치</h3>
+                <p><strong>기술적 조치:</strong> SSL 암호화 통신(HTTPS)을 적용하여 데이터 전송 구간을 보호합니다.</p>
+                <p><strong>관리적 조치:</strong> 데이터베이스 접근 권한을 운영자로 최소화하여 관리하며, 비밀번호 등은 암호화되어 저장됩니다.</p>
+              </section>
+
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">7. 자동 수집 장치의 설치·운영 및 거부</h3>
+                <p>본 서비스는 사용자 편의를 위해 브라우저의 '로컬스토리지'를 사용합니다. 이는 브라우저 설정을 통해 거부하거나 삭제할 수 있습니다.</p>
+              </section>
+
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">8. 개인정보 보호책임자 및 상담</h3>
+                <p>책임자: "롤 같이 할래" 오픈톡 방장<br/>문의: 카카오톡 오픈채팅방 레인</p>
+              </section>
+
+              <section>
+                <h3 className="text-white font-bold text-[13px] mb-1">9. 권익침해 구제방법</h3>
+                <p>기타 개인정보 침해에 대한 신고나 상담이 필요한 경우 개인정보침해신고센터(privacy.kisa.or.kr)로 문의하시기 바랍니다.</p>
+              </section>
+
+              <section className="bg-white/5 p-3 rounded-lg border border-white/5 text-[11px]">
+                <p>본 방침은 2026년 1월 1일부터 시행됩니다.</p>
+              </section>
+            </div>
+            <button onClick={() => setIsPrivacyOpen(false)} className="mt-6 w-full py-4 bg-white text-black font-black rounded-xl hover:bg-slate-200 transition-all">확인 및 닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 방 만들기 모달 */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-40 p-4">
           <div className="bg-[#0f172a] border border-white/10 p-4 rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden">
@@ -327,15 +388,12 @@ const handleSubmit = async () => {
                     value={formData.discord_room} 
                     onChange={e => setFormData({...formData, discord_room: e.target.value})}
                   >
-                    {/* 1. 내전일 때 */}
                     {formData.category === '내전' ? (
                       <option className="bg-[#0f172a]" value="내전 대기방">내전 대기방</option>
                     ) 
-                    /* 2. 기타일 때 */
                     : formData.category === '기타' ? (
                       <option className="bg-[#0f172a]" value="자유 대기방">자유 대기방</option>
                     ) 
-                    /* 3. 그 외 (롤 카테고리) */
                     : (
                       [1,2,3,4,5].map(n => (
                         <option key={n} className="bg-[#0f172a]" value={`${formData.category} ${n}번방`}>
@@ -346,13 +404,12 @@ const handleSubmit = async () => {
                   </select>
                 </div>
               </div>
-
               <input 
-              className="w-full bg-white/10 border-2 border-cyan-500/30 rounded-xl p-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-cyan-400 transition-all shadow-inner" 
-              placeholder="파티 제목 입력" 
-              value={formData.title} 
-              onChange={e => setFormData({...formData, title: e.target.value})} 
-            />
+                className="w-full bg-white/10 border-2 border-cyan-500/30 rounded-xl p-3 text-sm text-white placeholder:text-slate-500 outline-none focus:border-cyan-400 transition-all shadow-inner" 
+                placeholder="파티 제목 입력" 
+                value={formData.title} 
+                onChange={e => setFormData({...formData, title: e.target.value})} 
+              />
             </div>
             <div className="mt-2 space-y-1">
               <input 
@@ -362,8 +419,6 @@ const handleSubmit = async () => {
                 onChange={e => setWithFriends(e.target.value)} 
               />
             </div>
-            
-
             <div className="flex gap-3 mt-8 pt-4 border-t border-white/5">
               <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-3 text-[10px] font-bold text-slate-500">취소</button>
               <button onClick={handleSubmit} className="flex-1 py-3 text-[10px] bg-white text-black font-black rounded-xl hover:bg-slate-200">확인</button>
@@ -372,6 +427,7 @@ const handleSubmit = async () => {
         </div>
       )}
 
+      {/* 닉네임 설정 모달 */}
       {isNickModalOpen && (
           <div className="fixed inset-0 bg-[#020617] flex items-center justify-center z-[9999]">
             <div className="w-[380px] bg-[#111827] border-white/10 rounded-2xl p-8 shadow-2xl">
